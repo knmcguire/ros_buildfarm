@@ -15,6 +15,7 @@
 import argparse
 import os
 import sys
+from urllib.request import urlopen
 
 from ros_buildfarm.argument import add_argument_build_tool
 from ros_buildfarm.argument import add_argument_build_tool_args
@@ -68,6 +69,10 @@ def main(argv=sys.argv[1:]):
         default='deb',
         help="The format of the binary packages to install, 'conda' uses "
              'Pixi and conda-forge packages')
+    parser.add_argument(
+        '--pixi-toml-url',
+        help="The URL of the Pixi manifest pinning the conda package versions "
+             "(default: ros2/ros2's pixi.toml on the branch of the ROS distro)")
     add_argument_distribution_repository_urls(parser)
     add_argument_distribution_repository_key_files(parser)
     add_argument_build_tool(parser, required=True)
@@ -115,20 +120,25 @@ def main(argv=sys.argv[1:]):
 
     if args.package_format == 'deb':
         from apt import Cache
-        apt_cache = Cache()
+        pkg_cache = Cache()
         debian_pkg_names = [
             'build-essential',
             'python3',
         ]
         colcon_pkg_prefix = 'python3-'
     else:
-        # TODO(step 2) look up the versions of conda packages
-        apt_cache = None
-        debian_pkg_names = [
-            'c-compiler',
-            'cxx-compiler',
-            'python',
-        ]
+        pixi_toml_url = args.pixi_toml_url or \
+            'https://raw.githubusercontent.com/ros2/ros2/%s/pixi.toml' % \
+            args.rosdistro_name
+        pkg_cache = get_pixi_package_versions(
+            pixi_toml_url, rosdep_os_code_name)
+        debian_pkg_names = ['python']
+        if not rosdep_os_code_name.startswith('win-'):
+            # same compiler packages as ros2/ros2's pixi.toml,
+            # on Windows MSVC is provided by the image
+            debian_pkg_names += [
+                name + '_' + rosdep_os_code_name
+                for name in ['binutils', 'gcc', 'gxx']] + ['make']
         colcon_pkg_prefix = ''
     if args.build_tool == 'colcon':
         debian_pkg_names += [
@@ -160,7 +170,7 @@ def main(argv=sys.argv[1:]):
     debian_pkg_names_building -= set(debian_pkg_names)
     debian_pkg_names += order_dependencies(debian_pkg_names_building)
     debian_pkg_versions.update(
-        get_package_versions(apt_cache, debian_pkg_names))
+        get_package_versions(pkg_cache, debian_pkg_names))
 
     # get run and test dependencies and map them to binary packages
     run_and_test_depends = get_dependencies(
@@ -172,7 +182,7 @@ def main(argv=sys.argv[1:]):
     # in order to reuse existing images in the docker container
     debian_pkg_names_testing -= set(debian_pkg_names)
     debian_pkg_versions.update(
-        get_package_versions(apt_cache, debian_pkg_names_testing))
+        get_package_versions(pkg_cache, debian_pkg_names_testing))
     if args.testing:
         debian_pkg_names += order_dependencies(debian_pkg_names_testing)
 
@@ -286,10 +296,28 @@ def _get_run_and_test_dependencies(pkg, pkgs):
         if d.evaluated_condition is not False]
 
 
-def get_package_versions(apt_cache, pkg_names):
-    if apt_cache is None:
-        return {name: '*' for name in pkg_names}
-    return get_binary_package_versions(apt_cache, pkg_names)
+def get_package_versions(pkg_cache, pkg_names):
+    if isinstance(pkg_cache, dict):
+        # packages not pinned in the Pixi manifest are solved by Pixi
+        return {name: pkg_cache.get(name, '*') for name in pkg_names}
+    return get_binary_package_versions(pkg_cache, pkg_names)
+
+
+def get_pixi_package_versions(pixi_toml_url, pixi_platform):
+    import tomllib
+    print("Reading conda package versions from '%s'" % pixi_toml_url)
+    with urlopen(pixi_toml_url, timeout=30) as h:
+        manifest = tomllib.loads(h.read().decode())
+    dependencies = dict(manifest.get('dependencies', {}))
+    dependencies.update(
+        manifest.get('target', {}).get(pixi_platform, {}).get(
+            'dependencies', {}))
+    versions = {}
+    for name, spec in dependencies.items():
+        if isinstance(spec, dict):
+            spec = spec.get('version', '*')
+        versions[name] = spec
+    return versions
 
 
 def get_rosdep_os(package_format, os_name, os_code_name, arch):
