@@ -69,22 +69,33 @@ RUN echo "@today_str"
     os_code_name=os_code_name,
 ))@
 
+@[if pkg_format == 'conda']@
+@(TEMPLATE(
+    'snippet/install_pixi.Dockerfile.em',
+    arch=arch,
+))@
+
+@[end if]@
 RUN python3 -u /tmp/wrapper_scripts/@(wrapper_script) update-install-clean -q -y @(prereq_pkgs)
 
 @[if build_tool == 'colcon']@
 @# pytest-rerunfailures enables usage of --retest-until-pass
+@[if pkg_format == 'conda']@
+RUN python3 -u /tmp/wrapper_scripts/@(wrapper_script) update-install-clean -q -y pytest-rerunfailures
+@[else]@
 @(TEMPLATE(
     'snippet/install_pytest-rerunfailures.Dockerfile.em',
     os_name=os_name,
 ))@
+@[end if]@
 @[end if]@
 RUN python3 -u /tmp/wrapper_scripts/@(wrapper_script) update-install-clean -q -y ccache
 
 @[if run_abichecker]@
 @[if pkg_format == 'conda']@
 @# conda-forge provides abi-compliance-checker 2.3, auto_abi_checker is only on PyPI
-RUN python3 -u /tmp/wrapper_scripts/pixi.py update-install-clean -q -y catkin_pkg pip abi-compliance-checker
-RUN python3 -u /tmp/wrapper_scripts/pixi.py update-install-clean -q -y --pypi auto_abi_checker
+RUN python3 -u /tmp/wrapper_scripts/@(wrapper_script) update-install-clean -q -y catkin_pkg pip abi-compliance-checker
+RUN python3 -u /tmp/wrapper_scripts/@(wrapper_script) update-install-clean -q -y --pypi auto_abi_checker
 @[else]@
 RUN python3 -u /tmp/wrapper_scripts/apt.py update-install-clean -q -y python3-catkin-pkg-modules python3-pip
 @[if os_name == 'ubuntu' and os_code_name not in ('xenial', 'bionic')]@
@@ -119,17 +130,25 @@ RUN pip3 install -U auto_abi_checker
     install_lists=install_lists,
 ))@
 
+@[if pkg_format == 'deb']@
 # After all dependencies are installed, update ccache symlinks.
 # This command is supposed to be invoked whenever a new compiler is installed
 # but that isn't happening. So we invoke it here to make sure all compilers are
 # picked up.
 # TODO(nuclearsandwich) add link to Debian bug report when one is opened.
 RUN which update-ccache-symlinks >/dev/null 2>&1 && update-ccache-symlinks
+@[else]@
+# activation script of the Pixi environment, e.g. sets CC and CXX
+RUN pixi shell-hook --shell bash > /opt/pixi_ws/activate.sh
+WORKDIR /
+@[end if]@
 
 USER buildfarm
-ENTRYPOINT ["sh", "-c"]
+@# the activation script of the Pixi environment needs bash
+ENTRYPOINT ["@('bash' if pkg_format == 'conda' else 'sh')", "-c"]
 @{
 cmd = \
+    ('. /opt/pixi_ws/activate.sh && ' if pkg_format == 'conda' else '') + \
     'PATH=/usr/lib/ccache:$PATH' + \
     ' PYTHONPATH=/tmp/ros_buildfarm:$PYTHONPATH python3 -u'
 if not testing:

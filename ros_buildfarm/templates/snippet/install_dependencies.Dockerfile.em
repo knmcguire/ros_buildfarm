@@ -27,12 +27,16 @@ pkg_format = vars().get('pkg_format', 'deb')
 wrapper_script = 'apt.py' if pkg_format == 'deb' else 'pixi.py'
 extra_flags = ' -o Debug::pkgProblemResolver=yes' if pkg_format == 'deb' else ''
 
-def get_run_command(indices, dependencies, dependency_versions, wrapper_script, extra_flags):
+def get_run_command(indices, dependencies, dependency_versions, wrapper_script, extra_flags, pkg_format):
     cmds = []
     names = []
     for index in indices:
       name = dependencies[index]
-      cmds.append('echo "{name}: {version}"'.format(name=name, version=dependency_versions[name]))
+      version = dependency_versions[name]
+      cmds.append('echo "{name}: {version}"'.format(name=name, version=version))
+      if pkg_format == 'conda' and version != '*':
+        # the versions are only enforced for conda, e.g. 'pytest==9.0.2'
+        name = "'{name}{version}'".format(name=name, version=version)
       names.append(name)
     cmds.append('python3 -u /tmp/wrapper_scripts/{script} update-install-clean -q -y{extra_flags} {names}'.format(script=wrapper_script, extra_flags=extra_flags, names=' '.join(names)))
     return ' && '.join(cmds)
@@ -47,7 +51,7 @@ indices = []
 for j in range(begin_entries_for_line):
     indices.append(i + j)
 }@
-RUN @(get_run_command(indices, dependencies, dependency_versions, wrapper_script, extra_flags))
+RUN @(get_run_command(indices, dependencies, dependency_versions, wrapper_script, extra_flags, pkg_format))
 @[end for]@
 @[end if]@
 @[if end_entries_for_line]@
@@ -57,6 +61,6 @@ indices = []
 for j in range(end_entries_for_line):
     indices.append(i + j)
 }@
-RUN @(get_run_command(indices, dependencies, dependency_versions, wrapper_script, extra_flags))
+RUN @(get_run_command(indices, dependencies, dependency_versions, wrapper_script, extra_flags, pkg_format))
 @[end for]@
 @[end if]@

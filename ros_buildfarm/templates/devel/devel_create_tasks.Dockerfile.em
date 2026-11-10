@@ -58,6 +58,13 @@ RUN echo "@today_str"
     os_code_name=os_code_name,
 ))@
 
+@[if pkg_format == 'conda']@
+@(TEMPLATE(
+    'snippet/install_pixi.Dockerfile.em',
+    arch=arch,
+))@
+
+@[end if]@
 RUN python3 -u /tmp/wrapper_scripts/@(wrapper_script) update-install-clean -q -y @(prereq_pkgs)
 
 # always invalidate to actually have the latest apt and rosdep state
@@ -71,13 +78,21 @@ ENV ROSDISTRO_INDEX_URL @rosdistro_index_url
     custom_rosdep_urls=custom_rosdep_urls,
 ))@
 
+@[if pkg_format == 'conda']@
+RUN pixi shell-hook --shell bash > /opt/pixi_ws/activate.sh
+WORKDIR /
+
+@[end if]@
 USER buildfarm
 
-ENTRYPOINT ["sh", "-c"]
+@# the activation script of the Pixi environment needs bash
+ENTRYPOINT ["@('bash' if pkg_format == 'conda' else 'sh')", "-c"]
 @{
 cmds = [
     ' '.join(['rosdep', 'update'] + rosdep_update_options),
 ]
+if pkg_format == 'conda':
+    cmds.insert(0, '. /opt/pixi_ws/activate.sh')
 workspace_root = '/tmp/ws'
 if prerelease_overlay:
     workspace_root += ' /tmp/ws2'
