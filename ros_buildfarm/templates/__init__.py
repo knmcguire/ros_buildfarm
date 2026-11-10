@@ -256,7 +256,7 @@ def create_dockerfile(template_name, data, dockerfile_dir, verbose=True):
 
 def get_wrapper_scripts():
     wrapper_scripts = {}
-    for filename in ['apt.py', 'git.py']:
+    for filename in ['apt.py', 'git.py', 'pixi.py']:
         wrapper_script_path = os.path.join(
             os.path.dirname(os.path.dirname(__file__)), 'wrapper')
         abs_file_path = os.path.join(
