@@ -25,6 +25,7 @@ from ros_buildfarm.argument import \
 from ros_buildfarm.argument import add_argument_distribution_repository_urls
 from ros_buildfarm.argument import add_argument_dockerfile_dir
 from ros_buildfarm.argument import add_argument_env_vars
+from ros_buildfarm.argument import add_argument_package_format
 from ros_buildfarm.argument import add_argument_require_gpu_support
 from ros_buildfarm.argument import add_argument_ros_version
 from ros_buildfarm.argument import add_argument_run_abichecker
@@ -63,12 +64,7 @@ def main(argv=sys.argv[1:]):
         '--arch',
         required=True,
         help="The architecture (e.g. 'amd64')")
-    parser.add_argument(
-        '--package-format',
-        choices=['deb', 'conda'],
-        default='deb',
-        help="The format of the binary packages to install, 'conda' uses "
-             'Pixi and conda-forge packages')
+    add_argument_package_format(parser, default='deb')
     parser.add_argument(
         '--pixi-toml-url',
         help="The URL of the Pixi manifest pinning the conda package versions "

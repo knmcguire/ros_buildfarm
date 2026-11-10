@@ -59,6 +59,10 @@ class SourceBuildFile(BuildFile):
         self.build_tool = data.get('build_tool', 'catkin_make_isolated')
         assert self.build_tool in ('catkin_make_isolated', 'colcon')
 
+        # None means the native package format of the OS
+        self.package_format = data.get('package_format')
+        assert self.package_format in (None, 'conda')
+
         self.build_tool_args = None
         if 'build_tool_args' in data:
             self.build_tool_args = data['build_tool_args']

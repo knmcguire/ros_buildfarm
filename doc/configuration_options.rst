@@ -294,6 +294,12 @@ The following options are valid in version ``2`` (beside the generic options):
   * ``catkin_make_isolated`` (default)
   * ``colcon``
 
+* ``package_format``: the format of the binary packages the dependencies are
+  installed from. If not set, the native package format of the OS is used.
+  The following are valid values:
+
+  * ``conda``: conda-forge packages installed with Pixi
+
 * ``build_tool_args``: arbitrary arguments passed to the build tool.
 
 * ``build_tool_test_args``: arbitrary arguments passed to the build tool during

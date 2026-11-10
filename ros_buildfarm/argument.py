@@ -331,6 +331,17 @@ def add_argument_repository_names(parser, optional=False):
         help='A space separated list of repository names')
 
 
+def add_argument_package_format(parser, default=None):
+    default_help = ' (default: %s)' % default if default \
+        else ' (default: as set in the build file)'
+    parser.add_argument(
+        '--package-format',
+        choices=('deb', 'conda'),
+        default=default,
+        help="The format of the binary packages to install, 'conda' uses "
+             'Pixi and conda-forge packages' + default_help)
+
+
 def add_argument_build_tool(parser, required=False):
     default_help = '' if required else ' (default: as set in the build file)'
     parser.add_argument(

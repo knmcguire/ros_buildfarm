@@ -422,6 +422,7 @@ def _get_devel_job_config(
         'arch': arch,
         'repository_args': repository_args,
         'build_tool': build_file.build_tool,
+        'package_format': build_file.package_format,
         'build_tool_args': build_file.build_tool_args,
         'build_tool_test_args': build_file.build_tool_test_args,
         'ros_version': ros_version,
