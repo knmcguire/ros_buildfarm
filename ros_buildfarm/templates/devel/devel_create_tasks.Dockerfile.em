@@ -7,6 +7,12 @@
     arch=arch,
 ))@
 
+@{
+# 'conda' installs packages from conda-forge using Pixi
+pkg_format = vars().get('pkg_format', 'deb')
+wrapper_script = 'apt.py' if pkg_format == 'deb' else 'pixi.py'
+prereq_pkgs = 'git python3-apt python3-catkin-pkg-modules python3-empy python3-rosdep python3-rosdistro-modules wget' if pkg_format == 'deb' else 'git catkin_pkg empy rosdep rosdistro wget'
+}@
 VOLUME ["/var/cache/apt/archives"]
 
 ENV DEBIAN_FRONTEND noninteractive
@@ -52,11 +58,11 @@ RUN echo "@today_str"
     os_code_name=os_code_name,
 ))@
 
-RUN python3 -u /tmp/wrapper_scripts/apt.py update-install-clean -q -y git python3-apt python3-catkin-pkg-modules python3-empy python3-rosdep python3-rosdistro-modules wget
+RUN python3 -u /tmp/wrapper_scripts/@(wrapper_script) update-install-clean -q -y @(prereq_pkgs)
 
 # always invalidate to actually have the latest apt and rosdep state
 RUN echo "@now_str"
-RUN python3 -u /tmp/wrapper_scripts/apt.py update
+RUN python3 -u /tmp/wrapper_scripts/@(wrapper_script) update
 
 ENV ROSDISTRO_INDEX_URL @rosdistro_index_url
 

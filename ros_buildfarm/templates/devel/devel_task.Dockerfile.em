@@ -7,6 +7,12 @@
     arch=arch,
 ))@
 
+@{
+# 'conda' installs packages from conda-forge using Pixi
+pkg_format = vars().get('pkg_format', 'deb')
+wrapper_script = 'apt.py' if pkg_format == 'deb' else 'pixi.py'
+prereq_pkgs = 'git python3-yaml' if pkg_format == 'deb' else 'git pyyaml'
+}@
 VOLUME ["/var/cache/apt/archives"]
 
 ENV DEBIAN_FRONTEND noninteractive
@@ -63,7 +69,7 @@ RUN echo "@today_str"
     os_code_name=os_code_name,
 ))@
 
-RUN python3 -u /tmp/wrapper_scripts/apt.py update-install-clean -q -y git python3-yaml
+RUN python3 -u /tmp/wrapper_scripts/@(wrapper_script) update-install-clean -q -y @(prereq_pkgs)
 
 @[if build_tool == 'colcon']@
 @# pytest-rerunfailures enables usage of --retest-until-pass
@@ -72,9 +78,14 @@ RUN python3 -u /tmp/wrapper_scripts/apt.py update-install-clean -q -y git python
     os_name=os_name,
 ))@
 @[end if]@
-RUN python3 -u /tmp/wrapper_scripts/apt.py update-install-clean -q -y ccache
+RUN python3 -u /tmp/wrapper_scripts/@(wrapper_script) update-install-clean -q -y ccache
 
 @[if run_abichecker]@
+@[if pkg_format == 'conda']@
+@# conda-forge provides abi-compliance-checker 2.3, auto_abi_checker is only on PyPI
+RUN python3 -u /tmp/wrapper_scripts/pixi.py update-install-clean -q -y catkin_pkg pip abi-compliance-checker
+RUN python3 -u /tmp/wrapper_scripts/pixi.py update-install-clean -q -y --pypi auto_abi_checker
+@[else]@
 RUN python3 -u /tmp/wrapper_scripts/apt.py update-install-clean -q -y python3-catkin-pkg-modules python3-pip
 @[if os_name == 'ubuntu' and os_code_name not in ('xenial', 'bionic')]@
 # Focal/Groovy abi-compliance-checker package has a bug that breaks python invocation
@@ -89,6 +100,7 @@ RUN python3 -u /tmp/wrapper_scripts/apt.py update-install-clean -q -y abi-compli
 @[end if]@
 RUN pip3 install -U auto_abi_checker
 @[end if]@
+@[end if]@
 
 @(TEMPLATE(
     'snippet/set_environment_variables.Dockerfile.em',
@@ -99,6 +111,7 @@ RUN pip3 install -U auto_abi_checker
     'snippet/install_dependencies.Dockerfile.em',
     dependencies=dependencies,
     dependency_versions=dependency_versions,
+    pkg_format=pkg_format,
 ))@
 
 @(TEMPLATE(
