@@ -94,6 +94,8 @@ cmd = \
     ' --build-tool ' + build_tool + \
     ' --ros-version ' + str(ros_version) + \
     ' --env-vars ' + ' ' .join(['%s=%s' % key_value for key_value in env_vars.items()])
+if pkg_format != 'deb':
+    cmd += ' --package-format ' + pkg_format
 if run_abichecker:
     cmd += ' --run-abichecker'
 if require_gpu_support:

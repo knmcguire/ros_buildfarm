@@ -16,7 +16,6 @@ import argparse
 import os
 import sys
 
-from apt import Cache
 from ros_buildfarm.argument import add_argument_build_tool
 from ros_buildfarm.argument import add_argument_build_tool_args
 from ros_buildfarm.argument import add_argument_build_tool_test_args
@@ -63,6 +62,12 @@ def main(argv=sys.argv[1:]):
         '--arch',
         required=True,
         help="The architecture (e.g. 'amd64')")
+    parser.add_argument(
+        '--package-format',
+        choices=['deb', 'conda'],
+        default='deb',
+        help="The format of the binary packages to install, 'conda' uses "
+             'Pixi and conda-forge packages')
     add_argument_distribution_repository_urls(parser)
     add_argument_distribution_repository_key_files(parser)
     add_argument_build_tool(parser, required=True)
@@ -103,27 +108,45 @@ def main(argv=sys.argv[1:]):
         print('Package maintainer emails: %s' %
               ' '.join(sorted(maintainer_emails)))
 
+    rosdep_os_name, rosdep_os_code_name = get_rosdep_os(
+        args.package_format, args.os_name, args.os_code_name, args.arch)
     context = initialize_resolver(
-        args.rosdistro_name, args.os_name, args.os_code_name)
+        args.rosdistro_name, rosdep_os_name, rosdep_os_code_name)
 
-    apt_cache = Cache()
-
-    debian_pkg_names = [
-        'build-essential',
-        'python3',
-    ]
+    if args.package_format == 'deb':
+        from apt import Cache
+        apt_cache = Cache()
+        debian_pkg_names = [
+            'build-essential',
+            'python3',
+        ]
+        colcon_pkg_prefix = 'python3-'
+    else:
+        # TODO(step 2) look up the versions of conda packages
+        apt_cache = None
+        debian_pkg_names = [
+            'c-compiler',
+            'cxx-compiler',
+            'python',
+        ]
+        colcon_pkg_prefix = ''
     if args.build_tool == 'colcon':
         debian_pkg_names += [
-            'python3-colcon-metadata',
-            'python3-colcon-output',
-            'python3-colcon-parallel-executor',
-            'python3-colcon-ros',
-            'python3-colcon-test-result',
-        ]
+            colcon_pkg_prefix + name for name in [
+                'colcon-metadata',
+                'colcon-output',
+                'colcon-parallel-executor',
+                'colcon-ros',
+                'colcon-test-result',
+            ]]
     elif 'catkin' not in pkg_names:
         debian_pkg_names += resolve_names(['catkin'], **context)
     if args.ros_version == 2:
-        debian_pkg_names += resolve_names(['ros_workspace'], **context)
+        if args.package_format == 'deb':
+            debian_pkg_names += resolve_names(['ros_workspace'], **context)
+        else:
+            # there is no ros_workspace package on conda-forge
+            print("Skipping the 'ros_workspace' dependency for conda")
     print('Always install the following generic dependencies:')
     for debian_pkg_name in sorted(debian_pkg_names):
         print('  -', debian_pkg_name)
@@ -137,7 +160,7 @@ def main(argv=sys.argv[1:]):
     debian_pkg_names_building -= set(debian_pkg_names)
     debian_pkg_names += order_dependencies(debian_pkg_names_building)
     debian_pkg_versions.update(
-        get_binary_package_versions(apt_cache, debian_pkg_names))
+        get_package_versions(apt_cache, debian_pkg_names))
 
     # get run and test dependencies and map them to binary packages
     run_and_test_depends = get_dependencies(
@@ -149,7 +172,7 @@ def main(argv=sys.argv[1:]):
     # in order to reuse existing images in the docker container
     debian_pkg_names_testing -= set(debian_pkg_names)
     debian_pkg_versions.update(
-        get_binary_package_versions(apt_cache, debian_pkg_names_testing))
+        get_package_versions(apt_cache, debian_pkg_names_testing))
     if args.testing:
         debian_pkg_names += order_dependencies(debian_pkg_names_testing)
 
@@ -167,6 +190,7 @@ def main(argv=sys.argv[1:]):
         'os_name': args.os_name,
         'os_code_name': args.os_code_name,
         'arch': args.arch,
+        'pkg_format': args.package_format,
 
         'distribution_repository_urls': args.distribution_repository_urls,
         'distribution_repository_keys': get_distribution_repository_keys(
@@ -260,6 +284,30 @@ def _get_run_and_test_dependencies(pkg, pkgs):
         pkg.build_export_depends + pkg.buildtool_export_depends +
         pkg.exec_depends + pkg.test_depends
         if d.evaluated_condition is not False]
+
+
+def get_package_versions(apt_cache, pkg_names):
+    if apt_cache is None:
+        return {name: '*' for name in pkg_names}
+    return get_binary_package_versions(apt_cache, pkg_names)
+
+
+def get_rosdep_os(package_format, os_name, os_code_name, arch):
+    if package_format != 'conda':
+        return os_name, os_code_name
+    # rosdep models conda as a pseudo OS which works the same across
+    # platforms, use the Pixi platform as code name for platform specific rules
+    pixi_platforms = {
+        ('linux', 'amd64'): 'linux-64',
+        ('linux', 'arm64'): 'linux-aarch64',
+        ('windows', 'amd64'): 'win-64',
+    }
+    platform = 'windows' if os_name == 'windows' else 'linux'
+    try:
+        return 'conda', pixi_platforms[(platform, arch)]
+    except KeyError:
+        raise RuntimeError(
+            "No Pixi platform known for '%s' on '%s'" % (os_name, arch))
 
 
 def initialize_resolver(rosdistro_name, os_name, os_code_name):
