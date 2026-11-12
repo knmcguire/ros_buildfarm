@@ -96,6 +96,11 @@ if pull_request:
   </triggers>
   <concurrentBuild>true</concurrentBuild>
   <builders>
+@[if package_format == 'pixi']@
+@(TEMPLATE(
+    'devel/pixi/devel_job_builders.xml.em',
+))@
+@[else]@
 @(SNIPPET(
     'builder_system-groovy_check-free-disk-space',
 ))@
@@ -279,6 +284,7 @@ if pull_request:
         'echo "# END SECTION"',
     ]),
 ))@
+@[end if]@
 @[end if]@
   </builders>
   <publishers>
