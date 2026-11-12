@@ -28,6 +28,7 @@ from ros_buildfarm.common \
 from ros_buildfarm.common import get_xunit_publisher_types_and_patterns
 from ros_buildfarm.common import git_github_orgunit
 from ros_buildfarm.common import JobValidationError
+from ros_buildfarm.common import package_format_mapping
 from ros_buildfarm.common import write_groovy_script_and_configs
 from ros_buildfarm.config import get_distribution_file
 from ros_buildfarm.config import get_index as get_config_index
@@ -356,6 +357,7 @@ def _get_devel_job_config(
         is_disabled=False, run_abichecker=None,
         require_gpu_support=None):
     template_name = 'devel/devel_job.xml.em'
+    package_format = package_format_mapping.get(os_name, 'deb')
 
     repository_args, script_generating_key_files = \
         get_repositories_and_script_generating_key_files(build_file=build_file)
@@ -420,6 +422,7 @@ def _get_devel_job_config(
         'os_name': os_name,
         'os_code_name': os_code_name,
         'arch': arch,
+        'package_format': package_format,
         'repository_args': repository_args,
         'build_tool': build_file.build_tool,
         'build_tool_args': build_file.build_tool_args,
@@ -439,9 +442,11 @@ def _get_devel_job_config(
         'timeout_minutes': build_file.jenkins_job_timeout,
 
         # only Ubuntu Focal has a new enough pytest version which generates
-        # JUnit compliant result files
+        # JUnit compliant result files; Pixi environments get a current pytest
         'xunit_publisher_types': get_xunit_publisher_types_and_patterns(
-            ros_version, os_name == 'ubuntu' and os_code_name != 'bionic'),
+            ros_version,
+            package_format == 'pixi' or
+            (os_name == 'ubuntu' and os_code_name != 'bionic')),
 
         'git_ssh_credential_id': config.git_ssh_credential_id,
 
