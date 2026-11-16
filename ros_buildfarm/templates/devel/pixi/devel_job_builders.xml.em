@@ -40,6 +40,7 @@ for task, title, testing in (
         'title': title,
         'dockerfile_dir': task_dir,
         'image': 'devel_%s.%s' % (task, image_suffix),
+        'cid_file': '%s\\docker.cid' % task_dir,
     })
     generate_cmds += [
         ' '.join(
@@ -71,6 +72,11 @@ volumes = [
 @(SNIPPET(
     'builder_batch_docker-info',
 ))@
+@# before the Dockerfile directories holding the .cid files are recreated
+@(SNIPPET(
+    'builder_batch_docker-remove-containers',
+    cid_files=[task['cid_file'] for task in tasks],
+))@
 @(SNIPPET(
     'builder_batch_clone-ros-buildfarm',
     ros_buildfarm_repository=ros_buildfarm_repository,
@@ -96,6 +102,7 @@ volumes = [
     dockerfile_dir=task['dockerfile_dir'],
     image=task['image'],
     volumes=volumes,
+    cid_file=task['cid_file'],
 ))@
 @[end for]@
 @(SNIPPET(
