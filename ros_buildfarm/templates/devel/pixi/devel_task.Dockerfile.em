@@ -22,6 +22,8 @@ RUN powershell -NoProfile -Command "irm https://aka.ms/vs/17/release/vs_buildtoo
 RUN vs_buildtools_2022.exe --quiet --wait --norestart --add Microsoft.Component.MSBuild --add Microsoft.Net.Component.4.6.1.TargetingPack --add Microsoft.Net.Component.4.8.SDK --add Microsoft.VisualStudio.Component.CoreBuildTools --add Microsoft.VisualStudio.Component.Roslyn.Compiler --add Microsoft.VisualStudio.Component.TextTemplating --add Microsoft.VisualStudio.Component.VC.CLI.Support --add Microsoft.VisualStudio.Component.VC.CoreBuildTools --add Microsoft.VisualStudio.Component.VC.CoreIde --add Microsoft.VisualStudio.Component.VC.Redist.14.Latest --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK --add Microsoft.VisualStudio.Component.Windows11SDK.22621 --add Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Core --add Microsoft.VisualStudio.Workload.MSBuildTools --add Microsoft.VisualStudio.Workload.VCTools
 
 # Install a pinned and checksum-verified version of Pixi
+@# Same version and checksum as ros2/ci windows_docker_resources/Dockerfile;
+@# keep both in sync, the distro pixi.toml sets a minimum Pixi version.
 RUN powershell -NoProfile -Command "irm https://github.com/prefix-dev/pixi/releases/download/v0.78.0/pixi-x86_64-pc-windows-msvc.zip -OutFile pixi-x86_64-pc-windows-msvc.zip"
 RUN powershell -NoProfile -Command "if ((Get-FileHash pixi-x86_64-pc-windows-msvc.zip -Algorithm SHA256).Hash -ne '0655d6e11aa1dae56067f266d48b3c5815c02ed0031d5f3e96a1b0b81e1555b4') { exit 1 }"
 RUN powershell -NoProfile -Command "Expand-Archive -Path pixi-x86_64-pc-windows-msvc.zip -DestinationPath (Join-Path $Env:USERPROFILE\.pixi 'bin') -Force"
