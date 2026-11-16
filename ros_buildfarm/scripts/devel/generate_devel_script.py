@@ -70,12 +70,29 @@ def main(argv=sys.argv[1:]):
             Hook.__init__(self)
             self.scms = []
             self.scripts = []
+            self.batch_scripts = []
 
         def beforeInclude(self, *_, **kwargs):
             template_path = kwargs['file'].name.replace(os.sep, '/')
             if template_path.endswith('/snippet/scm.xml.em'):
                 self.scms.append(
                     (kwargs['locals']['repo_spec'], kwargs['locals']['path']))
+            if template_path.endswith('/snippet/builder_batch.xml.em'):
+                script = kwargs['locals']['script']
+                # reuse existing ros_buildfarm folder if it exists
+                if 'Clone ros_buildfarm' in script:
+                    script = '\n'.join([
+                        'if not exist "ros_buildfarm\\" goto clone_ros_buildfarm',
+                        'echo Using existing ros_buildfarm folder',
+                        'goto :eof',
+                        ':clone_ros_buildfarm',
+                        script,
+                    ])
+                if args.build_tool and ' --build-tool ' in script:
+                    script = script.replace(
+                        ' --build-tool catkin_make_isolated',
+                        ' --build-tool ' + args.build_tool)
+                self.batch_scripts.append(script)
             if template_path.endswith('/snippet/builder_shell.xml.em'):
                 script = kwargs['locals']['script']
                 # reuse existing ros_buildfarm folder if it exists
@@ -133,6 +150,31 @@ def main(argv=sys.argv[1:]):
     devel_job_name = get_devel_job_name(
         args.rosdistro_name, args.source_build_name,
         args.repository_name, args.os_name, args.os_code_name, args.arch)
+
+    if hook.batch_scripts:
+        if hook.scripts:
+            parser.error(
+                'The job mixes shell and batch build steps, which a single '
+                'devel script can not reproduce')
+        if args.build_tool_args is not None or \
+                args.build_tool_test_args is not None:
+            parser.error(
+                'Overriding the build tool arguments is not supported for '
+                "targets with batch build steps ('%s')" % args.os_name)
+        value = expand_template(
+            'devel/devel_script.bat.em', {
+                'devel_job_name': devel_job_name,
+                'scms': hook.scms,
+                'scripts': hook.batch_scripts,
+                'build_tool': args.build_tool or build_file.build_tool})
+        value = re.sub(
+            r'(^| )python ', lambda m: m.group(1) + '"%s" ' % sys.executable,
+            value, flags=re.M)
+        # cmd.exe needs CRLF line endings for labels and 'goto' to work
+        value = value.replace('\r\n', '\n').replace('\n', '\r\n')
+        sys.stdout.flush()
+        sys.stdout.buffer.write((value + '\r\n').encode('utf-8'))
+        return
 
     value = expand_template(
         'devel/devel_script.sh.em', {
