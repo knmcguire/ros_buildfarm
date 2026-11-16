@@ -30,13 +30,17 @@ for key, values in (
         quoted_args[key].append('"%s"' % value.replace('%', '%%'))
 
 generate_cmds = []
-task_scripts = {}
+tasks = []
 for task, title, testing in (
     ('build_and_install', 'build and install', False),
     ('build_and_test', 'build and test', True),
 ):
     task_dir = '%%WORKSPACE%%\\docker_%s' % task
-    image = 'devel_%s.%s' % (task, image_suffix)
+    tasks.append({
+        'title': title,
+        'dockerfile_dir': task_dir,
+        'image': 'devel_%s.%s' % (task, image_suffix),
+    })
     generate_cmds += [
         ' '.join(
             [
@@ -56,25 +60,10 @@ for task, title, testing in (
             ['--build-tool-test-args'] + quoted_args['tool_test_args']),
         check,
     ]
-    task_scripts[task] = '\n'.join([
-        'echo # BEGIN SECTION: Build Dockerfile - %s' % title,
-        'cd /d "%s"' % task_dir,
-        'python -u "%WORKSPACE%\\ros_buildfarm\\scripts\\misc\\docker_pull_baseimage.py"',
-        check,
-        'docker build --force-rm -t %s .' % image,
-        check,
-        'echo # END SECTION',
-        '',
-        'echo # BEGIN SECTION: Run Dockerfile - %s' % title,
-        'docker run' +
-        ' --rm' +
-        ' -v "%WORKSPACE%\\ros_buildfarm:C:\\ros_buildfarm:ro"' +
-        ' -v "%WORKSPACE%\\ws:C:\\ws"' +
-        ' ' + image,
-        check,
-        'cd /d "%WORKSPACE%"',
-        'echo # END SECTION',
-    ])
+volumes = [
+    '%WORKSPACE%\\ros_buildfarm:C:\\ros_buildfarm:ro',
+    '%WORKSPACE%\\ws:C:\\ws',
+]
 }@
 @(SNIPPET(
     'builder_system-groovy_check-free-disk-space',
@@ -100,14 +89,15 @@ for task, title, testing in (
         'echo # END SECTION',
     ]),
 ))@
+@[for task in tasks]@
 @(SNIPPET(
-    'builder_batch',
-    script=task_scripts['build_and_install'],
+    'builder_batch_docker-build-and-run',
+    title=task['title'],
+    dockerfile_dir=task['dockerfile_dir'],
+    image=task['image'],
+    volumes=volumes,
 ))@
-@(SNIPPET(
-    'builder_batch',
-    script=task_scripts['build_and_test'],
-))@
+@[end for]@
 @(SNIPPET(
     'builder_batch',
     script='\n'.join([
