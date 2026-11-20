@@ -96,6 +96,25 @@ if pull_request:
   </triggers>
   <concurrentBuild>true</concurrentBuild>
   <builders>
+@[if package_format == 'pixi']@
+@(TEMPLATE(
+    'devel/pixi/devel_job_builders.xml.em',
+    ros_buildfarm_repository=ros_buildfarm_repository,
+    wrapper_scripts=wrapper_scripts,
+    rosdistro_name=rosdistro_name,
+    source_repo_spec=source_repo_spec,
+    os_name=os_name,
+    os_code_name=os_code_name,
+    arch=arch,
+    build_tool=build_tool,
+    build_tool_args=build_tool_args,
+    build_tool_test_args=build_tool_test_args,
+    ros_version=ros_version,
+    build_environment_variables=build_environment_variables,
+    pull_request=pull_request,
+    collate_test_stats=collate_test_stats,
+))@
+@[else]@
 @(SNIPPET(
     'builder_system-groovy_check-free-disk-space',
 ))@
@@ -279,6 +298,7 @@ if pull_request:
         'echo "# END SECTION"',
     ]),
 ))@
+@[end if]@
 @[end if]@
   </builders>
   <publishers>

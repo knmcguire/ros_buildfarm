@@ -42,9 +42,9 @@ configuration:
 * **generate_devel_job.py** generates *devel* and/or *pull request* jobs for a
   specific source repository for each platform and architecture listed in the
   *release build file*.
-* **generate_devel_script.py** generates a *shell* script which will run the
-  same tasks as the *devel* job for a specific source repository on a
-  local machine.
+* **generate_devel_script.py** generates a *shell* script (a *batch* file for
+  Windows targets) which will run the same tasks as the *devel* job for a
+  specific source repository on a local machine.
 
 
 The build process in detail
@@ -142,6 +142,34 @@ tested source repository it can not detect missing dependencies of individual
 packages if another package in the same repository has that dependency.
 
 
+Windows targets
+^^^^^^^^^^^^^^^
+
+Targets with the OS name ``windows`` (e.g. ``windows ltsc2025 amd64``) use
+the package format ``pixi``.
+Only ``amd64`` is supported.
+The jobs run in Windows containers and their build steps are batch files.
+
+The dependencies are not resolved per repository.
+The environment contains everything from the distribution-wide ``pixi.toml``
+of the ROS distribution (``https://raw.githubusercontent.com/ros2/ros2/refs/heads/<rosdistro>/pixi.toml``),
+installed with Pixi.
+Since nothing needs to be resolved inside a container of the target platform,
+there is no container generating the task Dockerfiles: the script
+*create_pixi_devel_task.py* renders them directly on the agent.
+As there are no ROS packages in that environment yet, only repositories
+without dependencies on other ROS packages can be built.
+
+The containers are started with ``--isolation=process``, which requires the
+Windows version of the image (the OS code name) to match the one of the agent.
+Each container records its id in a ``docker.cid`` file.
+If a build is aborted the container keeps running; it is removed at the
+beginning of the next build of the same job on that agent.
+
+Besides Docker in Windows containers mode the agent needs ``git`` and Python 3
+with the packages ``empy`` and ``PyYAML`` on the ``PATH``.
+
+
 Run the *devel* job locally
 ---------------------------
 
@@ -172,6 +200,21 @@ from ROS *Rolling* for Ubuntu *Noble* *amd64*:
   generate_devel_script.py https://raw.githubusercontent.com/ros2/ros_buildfarm_config/ros2/index.yaml rolling default rclcpp ubuntu noble amd64 > /tmp/devel_job/devel_job_rolling_rclcpp.sh
   cd /tmp/devel_job
   sh devel_job_rolling_rclcpp.sh
+
+For a Windows target the generated script is a batch file.
+Generate it from ``cmd.exe`` (redirecting in Windows PowerShell changes the
+encoding of the file) and invoke it in an empty folder:
+
+.. code:: bat
+
+  mkdir C:\devel_job
+  python -m ros_buildfarm.scripts.devel.generate_devel_script <config_url> rolling <source_build_name> ament_package windows ltsc2025 amd64 > C:\devel_job\devel_job_rolling_ament_package.bat
+  cd /d C:\devel_job
+  devel_job_rolling_ament_package.bat
+
+The build steps run as separate subroutines of the batch file, each starting in
+the workspace, like the steps of the Jenkins job.
+Overriding the build tool arguments is not supported for Windows targets.
 
 Return code
 -----------

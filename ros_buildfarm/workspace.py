@@ -55,6 +55,11 @@ def call_build_tool(
     script_name = build_tool
 
     cmd = ['PYTHONIOENCODING=utf_8', 'PYTHONUNBUFFERED=1']
+    if os.name == 'nt':
+        # cmd.exe doesn't support the 'VAR=value command' syntax
+        env = dict(os.environ if env is None else env)
+        env.update(var.split('=', 1) for var in cmd)
+        cmd = []
 
     # use script from source space if available
     if build_tool == 'catkin_make_isolated':

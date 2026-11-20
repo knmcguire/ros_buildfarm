@@ -27,6 +27,7 @@ package_format_mapping = {
     'fedora': 'rpm',
     'rhel': 'rpm',
     'ubuntu': 'deb',
+    'windows': 'pixi',
 }
 
 
