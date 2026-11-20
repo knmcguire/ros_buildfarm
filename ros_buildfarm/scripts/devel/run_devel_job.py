@@ -30,6 +30,7 @@ from ros_buildfarm.argument import add_argument_dockerfile_dir
 from ros_buildfarm.argument import add_argument_env_vars
 from ros_buildfarm.argument import add_argument_os_code_name
 from ros_buildfarm.argument import add_argument_os_name
+from ros_buildfarm.argument import add_argument_package_format
 from ros_buildfarm.argument import add_argument_repository_name
 from ros_buildfarm.argument import add_argument_require_gpu_support
 from ros_buildfarm.argument import add_argument_ros_version
@@ -60,6 +61,7 @@ def main(argv=sys.argv[1:]):
         action='store_true',
         help='Operate on two catkin workspaces')
     add_argument_build_tool(parser, required=True)
+    add_argument_package_format(parser, default='deb')
     add_argument_custom_rosdep_update_options(parser)
     add_argument_ros_version(parser)
     add_argument_env_vars(parser)
@@ -83,6 +85,7 @@ def main(argv=sys.argv[1:]):
         'custom_rosdep_urls': args.custom_rosdep_urls,
         'rosdep_update_options': args.custom_rosdep_update_options,
         'uid': get_user_id(),
+        'pkg_format': args.package_format,
     })
     create_dockerfile(
         'devel/devel_create_tasks.Dockerfile.em', data, args.dockerfile_dir)

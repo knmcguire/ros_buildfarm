@@ -147,6 +147,7 @@ if pull_request:
         ' ' + arch +
         ' ' + ' '.join(repository_args) +
         ' --build-tool ' + build_tool +
+        (' --package-format ' + package_format if package_format else '') +
         ' --ros-version ' + str(ros_version) +
         (' --run-abichecker' if run_abichecker else '') +
         (' --require-gpu-support' if require_gpu_support else '') +

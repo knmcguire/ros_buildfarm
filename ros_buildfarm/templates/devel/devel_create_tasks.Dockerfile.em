@@ -7,6 +7,12 @@
     arch=arch,
 ))@
 
+@{
+# 'conda' installs packages from conda-forge using Pixi
+pkg_format = vars().get('pkg_format', 'deb')
+wrapper_script = 'apt.py' if pkg_format == 'deb' else 'pixi.py'
+prereq_pkgs = 'git python3-apt python3-catkin-pkg-modules python3-empy python3-rosdep python3-rosdistro-modules wget' if pkg_format == 'deb' else 'git catkin_pkg empy rosdep rosdistro wget'
+}@
 VOLUME ["/var/cache/apt/archives"]
 
 ENV DEBIAN_FRONTEND noninteractive
@@ -52,11 +58,18 @@ RUN echo "@today_str"
     os_code_name=os_code_name,
 ))@
 
-RUN python3 -u /tmp/wrapper_scripts/apt.py update-install-clean -q -y git python3-apt python3-catkin-pkg-modules python3-empy python3-rosdep python3-rosdistro-modules wget
+@[if pkg_format == 'conda']@
+@(TEMPLATE(
+    'snippet/install_pixi.Dockerfile.em',
+    arch=arch,
+))@
+
+@[end if]@
+RUN python3 -u /tmp/wrapper_scripts/@(wrapper_script) update-install-clean -q -y @(prereq_pkgs)
 
 # always invalidate to actually have the latest apt and rosdep state
 RUN echo "@now_str"
-RUN python3 -u /tmp/wrapper_scripts/apt.py update
+RUN python3 -u /tmp/wrapper_scripts/@(wrapper_script) update
 
 ENV ROSDISTRO_INDEX_URL @rosdistro_index_url
 
@@ -65,13 +78,21 @@ ENV ROSDISTRO_INDEX_URL @rosdistro_index_url
     custom_rosdep_urls=custom_rosdep_urls,
 ))@
 
+@[if pkg_format == 'conda']@
+RUN pixi shell-hook --shell bash > /opt/pixi_ws/activate.sh
+WORKDIR /
+
+@[end if]@
 USER buildfarm
 
-ENTRYPOINT ["sh", "-c"]
+@# the activation script of the Pixi environment needs bash
+ENTRYPOINT ["@('bash' if pkg_format == 'conda' else 'sh')", "-c"]
 @{
 cmds = [
     ' '.join(['rosdep', 'update'] + rosdep_update_options),
 ]
+if pkg_format == 'conda':
+    cmds.insert(0, '. /opt/pixi_ws/activate.sh')
 workspace_root = '/tmp/ws'
 if prerelease_overlay:
     workspace_root += ' /tmp/ws2'
@@ -88,6 +109,8 @@ cmd = \
     ' --build-tool ' + build_tool + \
     ' --ros-version ' + str(ros_version) + \
     ' --env-vars ' + ' ' .join(['%s=%s' % key_value for key_value in env_vars.items()])
+if pkg_format != 'deb':
+    cmd += ' --package-format ' + pkg_format
 if run_abichecker:
     cmd += ' --run-abichecker'
 if require_gpu_support:

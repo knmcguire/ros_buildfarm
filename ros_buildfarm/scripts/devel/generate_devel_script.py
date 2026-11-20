@@ -24,6 +24,7 @@ from ros_buildfarm.argument import add_argument_build_tool_test_args
 from ros_buildfarm.argument import add_argument_config_url
 from ros_buildfarm.argument import add_argument_os_code_name
 from ros_buildfarm.argument import add_argument_os_name
+from ros_buildfarm.argument import add_argument_package_format
 from ros_buildfarm.argument import add_argument_repository_name
 from ros_buildfarm.argument import add_argument_require_gpu_support
 from ros_buildfarm.argument import add_argument_rosdistro_name
@@ -52,6 +53,7 @@ def main(argv=sys.argv[1:]):
     add_argument_os_code_name(parser)
     add_argument_arch(parser)
     add_argument_build_tool(parser)
+    add_argument_package_format(parser)
     add_argument_run_abichecker(parser)
     add_argument_require_gpu_support(parser)
     a1 = add_argument_build_tool_args(parser)
@@ -119,6 +121,8 @@ def main(argv=sys.argv[1:]):
     config = get_config_index(args.config_url)
     build_files = get_source_build_files(config, args.rosdistro_name)
     build_file = build_files[args.source_build_name]
+    if args.package_format:
+        build_file.package_format = args.package_format
 
     configure_devel_job(
         args.config_url, args.rosdistro_name, args.source_build_name,
